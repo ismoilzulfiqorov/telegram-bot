@@ -11,12 +11,22 @@ bot = telebot.TeleBot(TOKEN)
 # Foydalanuvchi ma'lumotlarini vaqtincha saqlash
 user_data = {}
 
+# Helper function to send admin menu
+def send_admin_menu(chat_id):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
+    markup.add(types.KeyboardButton("/admin_transfer"))
+    bot.send_message(chat_id, "Admin paneli:", reply_markup=markup)
+
 @bot.message_handler(commands=['start', 'yangi'])
 def start(message):
     user_id = message.from_user.id
-    user_data[user_id] = {}
-    bot.send_message(message.chat.id, "Assalomu alaykum! Murojaat yo'llash uchun ism va familiyangizni kiriting:")
-    bot.register_next_step_handler(message, get_name)
+    if user_id == ADMIN_ID:
+        send_admin_menu(message.chat.id)
+        bot.send_message(message.chat.id, "Siz adminsiz! Quyi tugmalar orqali boshqarishingiz mumkin.")
+    else:
+        user_data[user_id] = {}
+        bot.send_message(message.chat.id, "Assalomu alaykum! Murojaat yo'llash uchun ism va familiyangizni kiriting:")
+        bot.register_next_step_handler(message, get_name)
 
 def get_name(message):
     user_id = message.from_user.id
@@ -156,6 +166,36 @@ def callback_inline(call):
         except Exception as e:
             bot.send_message(ADMIN_ID, f"❌ Amalni bajarishda xatolik: {e}")
             bot.answer_callback_query(call.id, text="Xatolik yuz berdi!")
+
+# --- NEW ADMIN TRANSFER FUNCTIONALITY ---
+@bot.message_handler(commands=['admin_transfer'])
+def admin_transfer_command(message):
+    if message.from_user.id == ADMIN_ID:
+        bot.send_message(ADMIN_ID, "Yangi administratorning Telegram User ID raqamini yuboring:")
+        bot.register_next_step_handler(message, process_new_admin_id)
+    else:
+        bot.send_message(message.chat.id, "Sizda bu buyruqni bajarish huquqi yo'q.")
+
+def process_new_admin_id(message):
+    global ADMIN_ID # Declare ADMIN_ID as global to modify it
+    try:
+        new_admin_id = int(message.text.strip())
+        old_admin_id = ADMIN_ID # Store old ID for the message
+        ADMIN_ID = new_admin_id # Update the ADMIN_ID in memory
+
+        bot.send_message(message.chat.id,
+                         f"✅ Administrator ID muvaffaqiyatli o'zgartirildi: `{old_admin_id}` -> `{new_admin_id}`.\n\n"
+                         f"**DIQQAT:** Bu o'zgarish bot qayta ishga tushguncha saqlanadi. O'zgarish doimiy bo'lishi uchun, iltimos, Colab'dagi kodni quyidagicha o'zgartiring va botni qayta ishga tushiring:\n\n"
+                         f"```python\nADMIN_ID = {new_admin_id}\n```\n\n"
+                         f"Botni qayta ishga tushirish uchun, shu ustunni (cell) qayta ishga tushiring. Eskirgan adminlik huquqlaringizni olib tashlash uchun Colab yuritish muhitini qayta ishga tushirish (Runtime -> Restart runtime) va barcha ustunlarni qayta yuritish tavsiya etiladi."
+                         , parse_mode="Markdown")
+        # Inform the new admin
+        bot.send_message(new_admin_id, "Siz botning yangi administratori etib tayinlandingiz! Endi siz murojaatlarni ko'rishingiz va ularga javob berishingiz mumkin.")
+
+    except ValueError:
+        bot.send_message(message.chat.id, "❌Noto'g'ri ID kiritdingiz. Iltimos, faqat raqam kiriting.")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Xatolik yuz berdi: {e}")
 
 # --- BOTNI ISHGA TUSHIRISH (TIMEOUTDAN HIMOYALANGAN) ---
 if __name__ == '__main__':
